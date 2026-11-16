@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full bg-slate-50 text-slate-900">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>조선왕조실록 사료 인터랙티브 지식 그래프</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Vis.js Network -->
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Pretendard & Noto Sans KR -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Custom Light Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Vis Network Light Grid Canvas */
+    #network-container {
+      background-color: #f8fafc;
+      background-size: 24px 24px;
+      background-image: 
+        radial-gradient(circle, rgba(148, 163, 184, 0.35) 1.2px, transparent 1.2px);
+    }
+
+    /* Custom Vis.js Tooltip Styling */
+    div.vis-tooltip {
+      background-color: rgba(255, 255, 255, 0.98) !important;
+      color: #0f172a !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 10px !important;
+      padding: 10px 14px !important;
+      font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
+      font-size: 12px !important;
+      line-height: 1.5 !important;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.06) !important;
+      max-width: 280px !important;
+      white-space: normal !important;
+      z-index: 50 !important;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col overflow-hidden select-none">
+
+  <!-- Top Header Bar -->
+  <header class="border-b border-slate-200 bg-white/95 backdrop-blur px-4 md:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 z-30 shrink-0 shadow-xs">
+    <!-- Brand & Title -->
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-600 shadow-2xs">
+        <i data-lucide="network" class="w-5 h-5"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base md:text-lg font-bold text-slate-900 tracking-tight">
+            세종실록 사료 지식 그래프
+          </h1>
+          <span class="hidden sm:inline-flex items-center text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+            세종 112권 온톨로지
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 hidden lg:block">산릉 승군 추문 · 용관 도태 · 안씨(심온 처) 봉사 제전 논쟁 인터랙티브 네트워크</p>
+      </div>
+    </div>
+
+    <!-- Scenario / Event Topic Filter Pills -->
+    <div class="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full order-3 md:order-2" id="topic-filter-bar">
+      <button data-topic="all" class="topic-btn active px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-2xs transition-all whitespace-nowrap">
+        전체 보기
+      </button>
+      <button data-topic="tomb" class="topic-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all whitespace-nowrap">
+        1. 산릉 승군 추문
+      </button>
+      <button data-topic="officials" class="topic-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all whitespace-nowrap">
+        2. 용관 도태 논의
+      </button>
+      <button data-topic="ancestral" class="topic-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all whitespace-nowrap">
+        3. 안씨 봉사·제전 논쟁
+      </button>
+    </div>
+
+    <!-- Right Search & Sidebar Toggle -->
+    <div class="flex items-center space-x-2 order-2 md:order-3">
+      <!-- Interactive Search with Live Dropdown -->
+      <div class="relative w-44 sm:w-64">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+        <input 
+          type="text" 
+          id="search-input"
+          autocomplete="off"
+          placeholder="인물·관청 검색 (예: 안씨, 의금부)..." 
+          class="w-full bg-slate-50 border border-slate-300 rounded-lg pl-9 pr-8 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all"
+        />
+        <button id="clear-search" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+        
+        <!-- Search Results Dropdown -->
+        <div id="search-dropdown" class="hidden absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-y-auto z-50 divide-y divide-slate-100">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Toggle Inspector Panel -->
+      <button 
+        id="toggle-panel-btn"
+        class="p-2 rounded-lg bg-white border border-slate-300 text-slate-700 hover:text-slate-950 hover:bg-slate-100 transition-colors flex items-center gap-1.5 text-xs font-semibold shadow-2xs"
+        title="상세 정보 및 필터 패널 열기/닫기"
+      >
+        <i data-lucide="panel-right" class="w-4 h-4 text-slate-600"></i>
+        <span class="hidden sm:inline">탐색기</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <div class="flex-1 flex relative overflow-hidden">
+
+    <!-- Floating Left Legend & Viewport Controls -->
+    <div class="absolute top-4 left-4 z-10 flex flex-col gap-2.5 pointer-events-none">
+      <!-- Interactive Class Legend -->
+      <div class="pointer-events-auto bg-white/95 backdrop-blur border border-slate-200/90 p-3 rounded-xl shadow-md flex flex-col gap-1.5 text-xs min-w-[165px]">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-1.5 mb-0.5">
+          <span class="font-bold text-slate-800">클래스 범례</span>
+          <span class="text-[10px] text-slate-400">클릭 필터</span>
+        </div>
+        <div id="quick-legend-list" class="flex flex-col gap-1">
+          <!-- Populated by JS -->
+        </div>
+        <div class="border-t border-slate-100 pt-1.5 mt-0.5 flex flex-col gap-1 text-[10px] text-slate-500">
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-0.5 bg-slate-500 inline-block"></span>
+            <span>혈연 · 기관 소속 · 결정</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-0 border-t-2 border-dashed border-slate-500 inline-block"></span>
+            <span>호출 · 건의 · 논의 대상</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Canvas Navigation & Layout Controls -->
+      <div class="pointer-events-auto bg-white/95 backdrop-blur border border-slate-200/90 p-1.5 rounded-xl shadow-md flex flex-col gap-1 w-fit">
+        <button id="btn-zoom-in" class="p-2 hover:bg-slate-100 rounded-lg text-slate-700 hover:text-slate-950 transition-colors" title="확대 (+)">
+          <i data-lucide="zoom-in" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-zoom-out" class="p-2 hover:bg-slate-100 rounded-lg text-slate-700 hover:text-slate-950 transition-colors" title="축소 (-)">
+          <i data-lucide="zoom-out" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-fit-view" class="p-2 hover:bg-slate-100 rounded-lg text-slate-700 hover:text-slate-950 transition-colors" title="화면에 맞추기">
+          <i data-lucide="maximize-2" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-reset-layout" class="p-2 hover:bg-amber-50 rounded-lg text-amber-600 hover:text-amber-700 transition-colors" title="초기화 및 레이아웃 재정렬">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        </button>
+        <div class="h-px bg-slate-200 mx-1"></div>
+        <button id="btn-toggle-physics" class="p-2 hover:bg-emerald-50 rounded-lg text-emerald-600 hover:text-emerald-700 transition-colors" title="물리 엔진 고정/해제">
+          <i data-lucide="play" id="physics-icon" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Vis.js Graph Canvas -->
+    <div id="network-container" class="w-full h-full relative cursor-grab active:cursor-grabbing"></div>
+
+    <!-- Bottom Status Pill -->
+    <div class="absolute bottom-4 left-4 z-10 pointer-events-none hidden sm:flex items-center gap-2 bg-white/90 backdrop-blur border border-slate-200 px-3 py-1.5 rounded-full shadow-xs text-[11px] text-slate-600">
+      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span id="graph-stats-text">노드 21개 · 관계 23개 표시 중</span>
+    </div>
+
+    <!-- Right Inspector & Filter Drawer -->
+    <aside 
+      id="side-panel"
+      class="absolute right-0 top-0 bottom-0 w-80 sm:w-96 bg-white/95 backdrop-blur border-l border-slate-200 z-20 flex flex-col shadow-xl transition-transform duration-300 ease-in-out translate-x-0"
+    >
+      <!-- Inspector Tabs -->
+      <div class="flex border-b border-slate-200 bg-slate-50/90 shrink-0">
+        <button id="tab-info-btn" class="flex-1 py-3 px-4 text-xs font-bold text-amber-700 border-b-2 border-amber-500 bg-white flex items-center justify-center gap-1.5 transition-colors">
+          <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+          상세 사료 정보
+        </button>
+        <button id="tab-filter-btn" class="flex-1 py-3 px-4 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent flex items-center justify-center gap-1.5 transition-colors">
+          <i data-lucide="sliders" class="w-3.5 h-3.5"></i>
+          필터 및 화면 설정
+        </button>
+      </div>
+
+      <!-- Tab Content Container -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        <!-- TAB 1: Node / Edge Inspector -->
+        <div id="tab-info-content" class="space-y-4">
+          <!-- Empty Selection Guide -->
+          <div id="no-selection-guide" class="text-center py-10 px-5 border border-dashed border-slate-300 rounded-2xl bg-slate-50/70">
+            <div class="w-12 h-12 rounded-full bg-white border border-slate-200 flex items-center justify-center mx-auto mb-3 shadow-2xs text-amber-600">
+              <i data-lucide="mouse-pointer-click" class="w-6 h-6"></i>
+            </div>
+            <p class="text-sm font-bold text-slate-800">노드나 연결선을 클릭해 보세요</p>
+            <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              그래프의 인물, 관청 또는 화살표(관계)를 선택하면 사료 속 역할과 연결된 맥락을 자세히 볼 수 있습니다.
+            </p>
+            <div class="mt-4 pt-4 border-t border-slate-200/80 text-left space-y-1.5">
+              <p class="text-[11px] font-bold text-slate-600">추천 탐색 노드:</p>
+              <div class="flex flex-wrap gap-1.5">
+                <button onclick="focusNodeById('king')" class="text-[11px] px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 font-medium">임금(세종)</button>
+                <button onclick="focusNodeById('lady_an')" class="text-[11px] px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 font-medium">안씨(安氏)</button>
+                <button onclick="focusNodeById('jiphyeonjeon')" class="text-[11px] px-2.5 py-1 rounded-md bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100 font-medium">집현전</button>
+                <button onclick="focusNodeById('naesuso')" class="text-[11px] px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-medium">내수소</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Selected Node Card -->
+          <div id="node-detail-card" class="hidden space-y-4">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 relative overflow-hidden shadow-xs">
+              <div id="detail-category-strip" class="absolute top-0 left-0 right-0 h-1.5 bg-amber-500"></div>
+              <div class="flex justify-between items-center mb-2 pt-0.5">
+                <span id="detail-category" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border">
+                  클래스
+                </span>
+                <span id="detail-topic-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                  관련 사건
+                </span>
+              </div>
+              <h2 id="detail-title" class="text-xl font-bold text-slate-900">노드명</h2>
+              <p id="detail-subtitle" class="text-xs font-medium text-slate-500 mt-0.5">직책 및 신분</p>
+            </div>
+
+            <!-- Historical Context Box -->
+            <div class="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5">
+              <h3 class="text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="scroll-text" class="w-3.5 h-3.5 text-amber-600"></i>
+                사료 내 역할 및 맥락
+              </h3>
+              <p id="detail-description" class="text-xs text-slate-700 leading-relaxed"></p>
+            </div>
+
+            <!-- Connected Neighbors List -->
+            <div class="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5">
+              <h3 class="text-xs font-bold text-slate-800 mb-2.5 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <i data-lucide="git-merge" class="w-3.5 h-3.5 text-amber-600"></i>
+                  연결된 관계 및 이웃 노드
+                </span>
+                <span id="detail-conn-count" class="text-[11px] font-bold bg-white border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full">0건</span>
+              </h3>
+              <div id="detail-connections-list" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                <!-- Dynamic clickable neighbor cards -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Selected Edge Card -->
+          <div id="edge-detail-card" class="hidden space-y-4">
+            <div class="bg-white border border-amber-200 rounded-2xl p-4 shadow-xs">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                  관계 (Relationship)
+                </span>
+                <span id="edge-style-badge" class="text-[10px] font-medium text-slate-500">실선</span>
+              </div>
+              <h2 id="edge-detail-title" class="text-base font-bold text-slate-900 mt-1">관계 유형</h2>
+              
+              <!-- From -> To Visual Box -->
+              <div class="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
+                <button id="edge-from-btn" class="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors">
+                  <div>
+                    <div class="text-[10px] text-slate-400">주체 (Source)</div>
+                    <div id="edge-from-label" class="text-xs font-bold text-slate-900">주체 노드</div>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-4 h-4 text-slate-400"></i>
+                </button>
+                <div class="flex justify-center">
+                  <i data-lucide="arrow-down" class="w-4 h-4 text-amber-600"></i>
+                </div>
+                <button id="edge-to-btn" class="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 hover:border-amber-400 text-left transition-colors">
+                  <div>
+                    <div class="text-[10px] text-slate-400">대상 (Target)</div>
+                    <div id="edge-to-label" class="text-xs font-bold text-slate-900">대상 노드</div>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-4 h-4 text-slate-400"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5">
+              <h3 class="text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="file-text" class="w-3.5 h-3.5 text-amber-600"></i>
+                세부 사료 내용
+              </h3>
+              <p id="edge-detail-desc" class="text-xs text-slate-700 leading-relaxed"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Filters & Display Options -->
+        <div id="tab-filter-content" class="hidden space-y-4">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-xs font-bold text-slate-800">노드 클래스별 표시 필터</h3>
+              <button id="btn-select-all-nodes" class="text-[11px] font-semibold text-amber-600 hover:text-amber-700 hover:underline">모두 선택</button>
+            </div>
+            <div id="class-filter-checkboxes" class="space-y-2">
+              <!-- Populated dynamically with counts -->
+            </div>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+            <h3 class="text-xs font-bold text-slate-800">시각화 표시 옵션</h3>
+            <label class="flex items-center justify-between text-xs font-medium text-slate-700 cursor-pointer">
+              <span>관계선(Edge) 라벨 표시</span>
+              <input type="checkbox" id="toggle-edge-labels" checked class="w-4 h-4 accent-amber-600 rounded cursor-pointer">
+            </label>
+            <label class="flex items-center justify-between text-xs font-medium text-slate-700 cursor-pointer">
+              <span>물리 엔진 시뮬레이션 (자동 정렬)</span>
+              <input type="checkbox" id="toggle-physics-check" checked class="w-4 h-4 accent-amber-600 rounded cursor-pointer">
+            </label>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer Source Citation -->
+      <div class="p-3 border-t border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-500 text-center shrink-0">
+        출전: 《조선왕조실록》 태백산사고본 36책 112권 22장 A면
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // ==========================================
+    // 1. ONTOLOGY SCHEMA & HISTORICAL DATA (21 Nodes)
+    // ==========================================
+    const CLASS_CONFIG = {
+      '군주 (Monarch)': {
+        shortName: '군주',
+        color: { background: '#f59e0b', border: '#b45309', highlight: { background: '#fbbf24', border: '#92400e' } },
+        fontColor: '#0f172a',
+        badgeBg: 'bg-amber-50 text-amber-800 border-amber-300',
+        stripColor: '#f59e0b',
+        shape: 'star',
+        size: 34
+      },
+      '인물 (Person)': {
+        shortName: '인물',
+        color: { background: '#3b82f6', border: '#1d4ed8', highlight: { background: '#60a5fa', border: '#1e40af' } },
+        fontColor: '#0f172a',
+        badgeBg: 'bg-blue-50 text-blue-800 border-blue-300',
+        stripColor: '#3b82f6',
+        shape: 'dot',
+        size: 20
+      },
+      '관청 (Government Office)': {
+        shortName: '관청',
+        color: { background: '#8b5cf6', border: '#5b21b6', highlight: { background: '#a78bfa', border: '#4c1d95' } },
+        fontColor: '#0f172a',
+        badgeBg: 'bg-purple-50 text-purple-800 border-purple-300',
+        stripColor: '#8b5cf6',
+        shape: 'diamond',
+        size: 24
+      },
+      '왕실 기관/시설 (Royal Agency/Treasury)': {
+        shortName: '왕실 기관·시설',
+        color: { background: '#10b981', border: '#047857', highlight: { background: '#34d399', border: '#065f46' } },
+        fontColor: '#ffffff',
+        badgeBg: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+        stripColor: '#10b981',
+        shape: 'box',
+        size: 22
+      },
+      '행정구역 (Administrative District)': {
+        shortName: '행정구역',
+        color: { background: '#f97316', border: '#c2410c', highlight: { background: '#fb923c', border: '#9a3412' } },
+        fontColor: '#ffffff',
+        badgeBg: 'bg-orange-50 text-orange-800 border-orange-300',
+        stripColor: '#f97316',
+        shape: 'box',
+        size: 22
+      }
+    };
+
+    const TOPIC_LABELS = {
+      all: '전체 사료',
+      tomb: '산릉 승군 추문',
+      officials: '용관 도태 논의',
+      ancestral: '안씨 봉사·제전 논쟁'
+    };
+
+    // All 21 Nodes
+    const nodesData = [
+      // 1. 군주 (1)
+      {
+        id: 'king',
+        label: '임금(세종)',
+        group: '군주 (Monarch)',
+        subtitle: '조선 제4대 국왕',
+        topics: ['tomb', 'officials', 'ancestral'],
+        description: '산릉 승군 압사 사건의 은폐를 질책하며 국문을 명하고, 흉년 속 용관 도태 의논을 주도하였으며, 안씨(심온 처)의 제사 비용 문제에 대해 집현전의 절충안을 채택해 내수소 노비 20구를 하사한 최종 결정권자입니다.'
+      },
+      // 2. 인물 (14)
+      {
+        id: 'hayeon',
+        label: '하연(河演)',
+        group: '인물 (Person)',
+        subtitle: '고위 관료 (의정부 대신)',
+        topics: ['tomb', 'officials', 'ancestral'],
+        description: '산릉 역사의 시급함을 들어 하급 관원부터 추문할 것을 아뢰었고, 개성부·한성부의 용관을 영구히 도태해야 한다고 주장했으며, 안씨가 종방에 공이 있으므로 관가에서 제전을 주어야 한다고 건의했습니다.'
+      },
+      {
+        id: 'hwangboin',
+        label: '황보인(皇甫仁)',
+        group: '인물 (Person)',
+        subtitle: '고위 관료 (의정부 대신)',
+        topics: ['tomb', 'officials', 'ancestral'],
+        description: '하연과 함께 산릉 영역관 추문을 건의했으며, 용관은 영구 도태 대신 궐원이 생길 때 보충하지 않는 방식을 제안했고, 정부 대신들과 함께 안씨 제전 지급을 상소했습니다.'
+      },
+      {
+        id: 'kimjongseo',
+        label: '김종서(金宗瑞)',
+        group: '인물 (Person)',
+        subtitle: '고위 관료 (의정부 대신)',
+        topics: ['tomb', 'officials', 'ancestral'],
+        description: '근래 흉년으로 국가 재정(국용)이 부족하므로 쓸데없는 관원(용관)을 도태하는 것이 재정 절약의 방도라고 아뢰었으며, 안씨 제전 지급 건의에도 참여했습니다.'
+      },
+      {
+        id: 'jeonggapson',
+        label: '정갑손(鄭甲孫)',
+        group: '인물 (Person)',
+        subtitle: '고위 관료 (의정부 대신)',
+        topics: ['tomb', 'officials', 'ancestral'],
+        description: '임금의 부름을 받아 산릉 승군 압사 사건 대책 및 용관 도태, 안씨 제전 지급 의논에 정부 대신으로 참여했습니다.'
+      },
+      {
+        id: 'igyejeon',
+        label: '이계전(李季甸)',
+        group: '인물 (Person)',
+        subtitle: '집현전 직제학',
+        topics: ['ancestral'],
+        description: '임금의 자문을 받고 집현전 동료들과 의논하여, 한나라 상관 황후 고사를 모방해 관가 제전 대신 내수소 노비와 토전을 적당히 지급함으로써 사은(私恩)과 공의(公義)를 온전히 할 것을 건의했습니다.'
+      },
+      {
+        id: 'hwanghui',
+        label: '황희(黃喜)',
+        group: '인물 (Person)',
+        subtitle: '영의정 (정부 수장)',
+        topics: ['ancestral'],
+        description: '정부 대신들을 이끌고 《한서(漢書)》의 상관안·경부인 고사를 상세히 고증하여, 안씨에게 제전을 두어 시종의 은혜를 온전히 해야 한다고 논리적으로 건의했습니다.'
+      },
+      {
+        id: 'jeongbeon',
+        label: '정분(鄭苯)',
+        group: '인물 (Person)',
+        subtitle: '고위 관료 (의정부 대신)',
+        topics: ['ancestral'],
+        description: '황희·하연·김종서 등과 함께 한나라 고사를 근거로 안씨의 제전을 지급해야 한다는 정부 합의안을 올렸습니다.'
+      },
+      {
+        id: 'lady_an',
+        label: '안씨(安氏)',
+        group: '인물 (Person)',
+        subtitle: '삼한국대부인 · 왕비(소헌왕후)의 어머니',
+        topics: ['ancestral'],
+        description: '죄인 심씨(심온)의 아내이나 태종의 유교로 봉작을 보존받았습니다. 삼년상 이후 제사(봉사)와 제전 지급 여부를 둘러싼 조정 논쟁의 핵심 인물입니다.'
+      },
+      {
+        id: 'lady_sim',
+        label: '심씨(沈氏)',
+        group: '인물 (Person)',
+        subtitle: '청천부원군 심온 · 죄인',
+        topics: ['ancestral'],
+        description: '안씨의 남편이자 중궁의 아버지로 태종 때 득죄하였습니다. 부부 일체론에 따라 죄인의 사당에 국가가 제전을 내릴 수 있는지가 쟁점이 되었습니다.'
+      },
+      {
+        id: 'sangguan_an',
+        label: '상관안(上官安)',
+        group: '인물 (Person)',
+        subtitle: '중국 한나라 역신 (상락후)',
+        topics: ['ancestral'],
+        description: '한나라 소제 때 곽광을 모살하고 반역을 꾀하다 멸문당한 인물입니다. 그의 아내 경부인의 예우 사례가 안씨 처우의 역사적 전례로 인용되었습니다.'
+      },
+      {
+        id: 'gyeongbuin',
+        label: '경부인(敬夫人)',
+        group: '인물 (Person)',
+        subtitle: '상관안의 아내 · 한나라 상관 황후의 어머니',
+        topics: ['ancestral'],
+        description: '남편 상관안이 반역죄로 처형되었음에도 봉작을 빼앗기지 않고 원읍과 장승을 두어 무덤이 수호받은 한나라 고사 속 인물입니다.'
+      },
+      {
+        id: 'queen',
+        label: '중궁(왕비)',
+        group: '인물 (Person)',
+        subtitle: '소헌왕후 (세종의 비)',
+        topics: ['ancestral'],
+        description: '안씨의 친딸로서 생전에 신료들을 거느리고 사제에 나아가 어머니를 극진히 봉양하였으며, 사후 제사 예우 논의의 명분이 됩니다.'
+      },
+      {
+        id: 'crown_prince',
+        label: '세자(동궁)',
+        group: '인물 (Person)',
+        subtitle: '조선 왕세자 (훗날 문종)',
+        topics: ['ancestral'],
+        description: '안씨가 동궁의 외할머니(외가)가 되므로 예법상 외가에 대한 은혜를 두터이 해야 한다는 논리의 근거가 됩니다.'
+      },
+      {
+        id: 'work_officers',
+        label: '영역관·솔령사령',
+        group: '인물 (Person)',
+        subtitle: '산릉 공사 현장 감독 및 인솔 관원',
+        topics: ['tomb'],
+        description: '산릉에서 돌을 끄는 승군이 눌려 죽은 사고를 숨기고 아뢰지 않은 일로 인해, 제조·낭청에 앞서 의금부에서 우선 추문(국문)을 받은 현장 실무자들입니다.'
+      },
+      // 3. 관청 (2)
+      {
+        id: 'uigeumbu',
+        label: '의금부(義禁府)',
+        group: '관청 (Government Office)',
+        subtitle: '왕명 출납 및 중죄인 추국 사법기관',
+        topics: ['tomb'],
+        description: '임금의 명을 받아 산릉 승군 압사 사건 은폐와 관련해 영역관과 솔령사령을 하옥하여 국문한 사법 기관입니다.'
+      },
+      {
+        id: 'jiphyeonjeon',
+        label: '집현전(集賢殿)',
+        group: '관청 (Government Office)',
+        subtitle: '왕실 학술 및 정책 자문 기관',
+        topics: ['ancestral'],
+        description: '직제학 이계전 등이 모여 관가 제전 지급은 공의에 어긋나므로, 한나라 고사를 따라 내수소 노비와 토전을 지급하자는 절충안을 건의했습니다.'
+      },
+      // 4. 왕실 기관/시설 (2)
+      {
+        id: 'naesuso',
+        label: '내수소(內需所)',
+        group: '왕실 기관/시설 (Royal Agency/Treasury)',
+        subtitle: '왕실 재산 및 노비·토전 관리 기관',
+        topics: ['ancestral'],
+        description: '왕실의 사적 재정을 관장하는 기관으로, 임금이 집현전의 의논을 수용하여 안씨의 봉사 비용으로 내수소 노비 20구를 지급하도록 명한 기관입니다.'
+      },
+      {
+        id: 'bokheunggo',
+        label: '복흥고(福興庫)',
+        group: '왕실 기관/시설 (Royal Agency/Treasury)',
+        subtitle: '내수소 산하 왕실 창고',
+        topics: ['ancestral'],
+        description: '봉작이 유지된 대부인 안씨의 삼년상 기간 동안 크고 작은 제사 물품을 공급했던 왕실 창고입니다.'
+      },
+      // 5. 행정구역 (2)
+      {
+        id: 'gaeseong',
+        label: '개성부(開城府)',
+        group: '행정구역 (Administrative District)',
+        subtitle: '구도(舊都) 유수부',
+        topics: ['officials'],
+        description: '하연 등이 유수 한 사람만으로도 충분히 다스릴 수 있다며 불필요한 관원(용관) 도태 대상으로 지목한 행정구역입니다.'
+      },
+      {
+        id: 'hanseong',
+        label: '한성부(漢城府)',
+        group: '행정구역 (Administrative District)',
+        subtitle: '조선의 수도 행정 관청',
+        topics: ['officials'],
+        description: '판부사 1명과 부윤 2명으로 관원 수가 너무 많아 도태가 필요하다고 하연 등이 건의한 수도 행정구역입니다.'
+      }
+    ];
+
+    // All Relationships (Edges)
+    const edgesData = [
+      // 1. 산릉 승군 추문 & 2. 용관 도태 논의 (임금 -> 대신들)
+      {
+        from: 'king', to: 'hayeon',
+        label: '호출·명령: 승군 사망·용관 논의',
+        arrows: 'to', dashes: true,
+        topics: ['tomb', 'officials'],
+        description: '임금이 하연을 불러 산릉 승군 압사 은폐 사건의 조사와 흉년 대비 용관(불필요한 관원) 도태 여부를 의논하도록 명함.'
+      },
+      {
+        from: 'king', to: 'hwangboin',
+        label: '호출·명령: 승군 사망·용관 논의',
+        arrows: 'to', dashes: true,
+        topics: ['tomb', 'officials'],
+        description: '임금이 황보인을 불러 산릉 사고 조사 및 용관 도태에 관한 정사를 의논함.'
+      },
+      {
+        from: 'king', to: 'kimjongseo',
+        label: '호출·명령: 승군 사망·용관 논의',
+        arrows: 'to', dashes: true,
+        topics: ['tomb', 'officials'],
+        description: '임금이 김종서를 불러 산릉 승군 사망 사건 및 국가 재정 절감을 위한 용관 도태를 의논함.'
+      },
+      {
+        from: 'king', to: 'jeonggapson',
+        label: '호출·명령: 승군 사망 사건 논의',
+        arrows: 'to', dashes: true,
+        topics: ['tomb'],
+        description: '임금이 정갑손을 불러 산릉 역사의 승군 사망 보고 누락 사건을 추궁하고 대책을 의논함.'
+      },
+      {
+        from: 'uigeumbu', to: 'work_officers',
+        label: '국문 수행: 승군 사망 사건 추문',
+        arrows: 'to', dashes: false,
+        topics: ['tomb'],
+        description: '하연 등의 건의를 받아들여 의금부가 산릉 공사 현장의 영역관과 솔령사령을 우선 잡아들여 국문(심문)함.'
+      },
+
+      // 2. 용관 도태 논의 대상
+      {
+        from: 'hayeon', to: 'gaeseong',
+        label: '용관 도태 건의 대상',
+        arrows: 'to', dashes: true,
+        topics: ['officials'],
+        description: '하연이 개성부는 한 명의 유수로도 다스릴 수 있으므로 잉여 관원을 도태해야 한다고 아룀.'
+      },
+      {
+        from: 'hayeon', to: 'hanseong',
+        label: '용관 도태 건의 대상',
+        arrows: 'to', dashes: true,
+        topics: ['officials'],
+        description: '하연이 한성부는 판부사 1인, 부윤 2인으로 관원이 너무 많아 도태하지 않을 수 없다고 아룀.'
+      },
+      {
+        from: 'kimjongseo', to: 'hanseong',
+        label: '국용 절약·용관 도태 동조',
+        arrows: 'to', dashes: true,
+        topics: ['officials'],
+        description: '김종서가 흉년으로 나라의 재정이 넉넉지 못하므로 쓸데없는 관원을 도태하여 국용을 절약하자고 건의함.'
+      },
+
+      // 3. 안씨 봉사 및 제전 논쟁
+      {
+        from: 'king', to: 'igyejeon',
+        label: '호출·자문: 안씨 봉사·제전 의논',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '임금이 집현전 직제학 이계전을 불러 정부에서 주장하는 안씨 제전(祭田) 지급의 타당성을 동료들과 의논해 아뢰도록 자문함.'
+      },
+      {
+        from: 'lady_sim', to: 'lady_an',
+        label: '부부 관계 (죄인과 아내)',
+        arrows: 'to;from', dashes: false,
+        topics: ['ancestral'],
+        description: '죄인 심씨(심온)와 삼한국대부인 안씨는 부부 사이로, 한 사당에 함께 배향되는 부부 일체론이 제전 지급 논쟁의 핵심이 됨.'
+      },
+      {
+        from: 'queen', to: 'lady_an',
+        label: '모자(모녀) 관계',
+        arrows: 'to;from', dashes: false,
+        topics: ['ancestral'],
+        description: '안씨는 중궁(소헌왕후)의 친어머니로서, 중궁 생전에 국모의 예우로 극진한 봉양을 받음.'
+      },
+      {
+        from: 'crown_prince', to: 'lady_an',
+        label: '외조(외할머니) 관계',
+        arrows: 'to;from', dashes: false,
+        topics: ['ancestral'],
+        description: '안씨는 동궁(왕세자)의 외할머니이므로, 유교적 정리에 따라 외가에 대한 은혜를 두터이 해야 한다는 명분이 됨.'
+      },
+      {
+        from: 'bokheunggo', to: 'lady_an',
+        label: '재정 제공: 삼년상 제사 비용',
+        arrows: 'to', dashes: false,
+        topics: ['ancestral'],
+        description: '안씨의 작위가 보존되었기에 삼년상 동안 크고 작은 제사 물품을 내수소 산하 복흥고에서 제공함.'
+      },
+      {
+        from: 'sangguan_an', to: 'gyeongbuin',
+        label: '부부 관계 (한나라 고사)',
+        arrows: 'to;from', dashes: false,
+        topics: ['ancestral'],
+        description: '한나라 역신 상관안과 그 아내 경부인의 관계. 역신의 처임에도 무덤과 제사를 보존받은 전례로 조정과 집현전 양측 모두에서 인용됨.'
+      },
+      {
+        from: 'igyejeon', to: 'jiphyeonjeon',
+        label: '직제학 소속·의논 주관',
+        arrows: 'to;from', dashes: false,
+        topics: ['ancestral'],
+        description: '집현전 직제학 이계전이 동료 학사들과 함께 안씨 봉사 예법과 한나라 상관 황후 고사를 토론함.'
+      },
+      {
+        from: 'jiphyeonjeon', to: 'king',
+        label: '정책 건의: 내수소 노비·토전 지급',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '집현전이 한나라 상관 황후 고사를 모방하여 관가 제전 대신 내수소의 노비와 토전을 적당히 지급해 사은과 공의를 모두 온전히 할 것을 건의함.'
+      },
+      {
+        from: 'hwanghui', to: 'king',
+        label: '정책 건의: 안씨 제전(祭田) 지급',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '영의정 황희를 비롯한 정부 대신들이 《한서》를 고증하여, 안씨에게 제전을 두어 시종의 은혜를 온전히 할 것을 상소함.'
+      },
+      {
+        from: 'hayeon', to: 'king',
+        label: '정책 건의: 종방 공훈 보답 제전',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '하연이 안씨는 종방에 공이 있으므로 제전을 주어 보답하지 않을 수 없다며 정부 대신들과 함께 제전 지급을 건의함.'
+      },
+      {
+        from: 'hwangboin', to: 'king',
+        label: '정책 건의: 제전 지급 연명 상소',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '황보인이 황희·하연 등과 함께 경부인 고사를 인용하여 안씨 제전 지급을 청함.'
+      },
+      {
+        from: 'kimjongseo', to: 'king',
+        label: '정책 건의: 제전 지급 연명 상소',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '김종서가 정부 대신들과 함께 안씨 제전 지급 상소에 참여함.'
+      },
+      {
+        from: 'jeongbeon', to: 'king',
+        label: '정책 건의: 제전 지급 연명 상소',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '정분이 정부 대신들과 함께 안씨 제전 지급 상소에 참여함.'
+      },
+      {
+        from: 'jeonggapson', to: 'king',
+        label: '정책 건의: 제전 지급 연명 상소',
+        arrows: 'to', dashes: true,
+        topics: ['ancestral'],
+        description: '정갑손이 정부 대신들과 함께 안씨 제전 지급 상소에 참여함.'
+      },
+      {
+        from: 'king', to: 'naesuso',
+        label: '처분 결정: 내수소 노비 20구 지급',
+        arrows: 'to', dashes: false,
+        topics: ['ancestral'],
+        description: '임금이 마침내 집현전의 절충안을 채택하여 안씨의 제사를 받들도록 내수소의 노비 20구를 지급하라고 최종 결정함.'
+      }
+    ];
+
+    // ==========================================
+    // 2. STATE & VIS.JS INITIALIZATION
+    // ==========================================
+    let network = null;
+    let nodesDataSet = new vis.DataSet();
+    let edgesDataSet = new vis.DataSet();
+
+    let activeCategories = new Set(Object.keys(CLASS_CONFIG));
+    let activeTopic = 'all';
+    let showEdgeLabels = true;
+    let isPhysicsActive = true;
+    let selectedNodeId = null;
+    let selectedEdgeId = null;
+
+    function createNodeObject(node) {
+      const cfg = CLASS_CONFIG[node.group] || CLASS_CONFIG['인물 (Person)'];
+      const isTopicMatch = activeTopic === 'all' || (node.topics && node.topics.includes(activeTopic));
+      
+      return {
+        id: node.id,
+        label: node.label,
+        group: node.group,
+        shape: cfg.shape,
+        size: cfg.size,
+        color: isTopicMatch 
+          ? cfg.color 
+          : { background: '#e2e8f0', border: '#cbd5e1', highlight: cfg.color.highlight },
+        font: {
+          color: isTopicMatch ? cfg.fontColor : '#94a3b8',
+          face: 'Pretendard, Noto Sans KR, sans-serif',
+          size: node.id === 'king' ? 15 : 13,
+          bold: true,
+          strokeWidth: cfg.shape === 'box' ? 0 : 3.5,
+          strokeColor: '#ffffff'
+        },
+        title: `<strong>${node.label}</strong><br><span style="color:#64748b;font-size:11px;">${node.group}</span><br><div style="margin-top:4px;">${node.subtitle}</div>`,
+        borderWidth: node.id === 'king' ? 3 : 2,
+        shadow: isTopicMatch 
+          ? { enabled: true, color: 'rgba(15, 23, 42, 0.14)', size: 8, x: 0, y: 3 }
+          : { enabled: false }
+      };
+    }
+
+    function createEdgeObject(edge, idx) {
+      const isTopicMatch = activeTopic === 'all' || (edge.topics && edge.topics.includes(activeTopic));
+      
+      return {
+        id: `edge_${idx}`,
+        from: edge.from,
+        to: edge.to,
+        label: (showEdgeLabels && isTopicMatch) ? edge.label : '',
+        title: `<strong>${edge.label}</strong><br><div style="margin-top:4px;">${edge.description}</div>`,
+        font: {
+          color: isTopicMatch ? '#334155' : '#cbd5e1',
+          size: 10.5,
+          face: 'Pretendard, Noto Sans KR, sans-serif',
+          align: 'horizontal',
+          background: isTopicMatch ? 'rgba(255, 255, 255, 0.92)' : 'transparent',
+          strokeWidth: 2,
+          strokeColor: '#ffffff'
+        },
+        arrows: edge.arrows || 'to',
+        dashes: edge.dashes ? [6, 5] : false,
+        color: {
+          color: isTopicMatch ? '#94a3b8' : '#e2e8f0',
+          highlight: '#d97706',
+          hover: '#475569'
+        },
+        width: isTopicMatch ? 1.8 : 1,
+        smooth: {
+          enabled: true,
+          type: 'dynamic'
+        }
+      };
+    }
+
+    function initNetwork() {
+      const container = document.getElementById('network-container');
+      const initialNodes = nodesData.map(createNodeObject);
+      const initialEdges = edgesData.map(createEdgeObject);
+
+      nodesDataSet = new vis.DataSet(initialNodes);
+      edgesDataSet = new vis.DataSet(initialEdges);
+
+      const options = {
+        nodes: {
+          borderWidthSelected: 3.5
+        },
+        edges: {
+          hoverWidth: 1.5,
+          selectionWidth: 2.5
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 180,
+          navigationButtons: false,
+          keyboard: false
+        },
+        physics: {
+          enabled: true,
+          barnesHut: {
+            gravitationalConstant: -4200,
+            centralGravity: 0.25,
+            springLength: 155,
+            springConstant: 0.04,
+            damping: 0.1
+          },
+          stabilization: {
+            iterations: 200,
+            updateInterval: 25
+          }
+        }
+      };
+
+      network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+
+      network.on('click', handleCanvasClick);
+      network.on('hoverNode', () => { container.style.cursor = 'pointer'; });
+      network.on('blurNode', () => { container.style.cursor = 'grab'; });
+      network.on('hoverEdge', () => { container.style.cursor = 'pointer'; });
+      network.on('blurEdge', () => { container.style.cursor = 'grab'; });
+
+      updateStatsText();
+    }
+
+    // ==========================================
+    // 3. INTERACTIVE SELECTION & HIGHLIGHTING
+    // ==========================================
+    function handleCanvasClick(params) {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        selectedNodeId = nodeId;
+        selectedEdgeId = null;
+        highlightSubgraphForNode(nodeId);
+        showNodeDetailCard(nodeId);
+      } else if (params.edges.length > 0) {
+        const edgeId = params.edges[0];
+        selectedEdgeId = edgeId;
+        selectedNodeId = null;
+        highlightSingleEdge(edgeId);
+        showEdgeDetailCard(edgeId);
+      } else {
+        selectedNodeId = null;
+        selectedEdgeId = null;
+        applyAllFilters();
+        showEmptyGuide();
+      }
+    }
+
+    function focusNodeById(nodeId) {
+      if (!nodesDataSet.get(nodeId)) {
+        // Ensure category is visible if hidden
+        const node = nodesData.find(n => n.id === nodeId);
+        if (node && !activeCategories.has(node.group)) {
+          activeCategories.add(node.group);
+          const cb = document.querySelector(`.category-checkbox[data-class="${node.group}"]`);
+          if (cb) cb.checked = true;
+          applyAllFilters();
+        }
+      }
+      network.selectNodes([nodeId]);
+      selectedNodeId = nodeId;
+      selectedEdgeId = null;
+      highlightSubgraphForNode(nodeId);
+      showNodeDetailCard(nodeId);
+      network.focus(nodeId, {
+        scale: 1.15,
+        animation: { duration: 550, easingFunction: 'easeInOutQuad' }
+      });
+    }
+
+    function highlightSubgraphForNode(nodeId) {
+      const connectedNodes = network.getConnectedNodes(nodeId);
+      const connectedEdges = network.getConnectedEdges(nodeId);
+
+      const updatedNodes = nodesDataSet.get().map(node => {
+        const raw = nodesData.find(n => n.id === node.id);
+        const cfg = CLASS_CONFIG[raw.group];
+        const isNeighbor = node.id === nodeId || connectedNodes.includes(node.id);
+        return {
+          id: node.id,
+          color: isNeighbor ? cfg.color : { background: '#e2e8f0', border: '#cbd5e1' },
+          font: { color: isNeighbor ? cfg.fontColor : '#94a3b8' },
+          shadow: { enabled: isNeighbor }
+        };
+      });
+
+      const updatedEdges = edgesDataSet.get().map(edge => {
+        const idx = parseInt(edge.id.replace('edge_', ''), 10);
+        const rawEdge = edgesData[idx];
+        const isConnected = connectedEdges.includes(edge.id);
+        return {
+          id: edge.id,
+          label: (showEdgeLabels && isConnected) ? rawEdge.label : '',
+          color: { color: isConnected ? '#d97706' : '#e2e8f0' },
+          width: isConnected ? 2.8 : 1,
+          font: {
+            color: isConnected ? '#0f172a' : '#cbd5e1',
+            background: isConnected ? '#fef3c7' : 'transparent'
+          }
+        };
+      });
+
+      nodesDataSet.update(updatedNodes);
+      edgesDataSet.update(updatedEdges);
+    }
+
+    function highlightSingleEdge(edgeId) {
+      const idx = parseInt(edgeId.replace('edge_', ''), 10);
+      const rawEdge = edgesData[idx];
+      if (!rawEdge) return;
+
+      const updatedNodes = nodesDataSet.get().map(node => {
+        const raw = nodesData.find(n => n.id === node.id);
+        const cfg = CLASS_CONFIG[raw.group];
+        const isEndpoint = node.id === rawEdge.from || node.id === rawEdge.to;
+        return {
+          id: node.id,
+          color: isEndpoint ? cfg.color : { background: '#e2e8f0', border: '#cbd5e1' },
+          font: { color: isEndpoint ? cfg.fontColor : '#94a3b8' },
+          shadow: { enabled: isEndpoint }
+        };
+      });
+
+      const updatedEdges = edgesDataSet.get().map(edge => {
+        const eIdx = parseInt(edge.id.replace('edge_', ''), 10);
+        const rEdge = edgesData[eIdx];
+        const isSelected = edge.id === edgeId;
+        return {
+          id: edge.id,
+          label: (showEdgeLabels && isSelected) ? rEdge.label : '',
+          color: { color: isSelected ? '#d97706' : '#e2e8f0' },
+          width: isSelected ? 3.2 : 1,
+          font: {
+            color: isSelected ? '#0f172a' : '#cbd5e1',
+            background: isSelected ? '#fef3c7' : 'transparent'
+          }
+        };
+      });
+
+      nodesDataSet.update(updatedNodes);
+      edgesDataSet.update(updatedEdges);
+    }
+
+    // ==========================================
+    // 4. INSPECTOR SIDEBAR RENDERING
+    // ==========================================
+    function showEmptyGuide() {
+      document.getElementById('no-selection-guide').classList.remove('hidden');
+      document.getElementById('node-detail-card').classList.add('hidden');
+      document.getElementById('edge-detail-card').classList.add('hidden');
+    }
+
+    function showNodeDetailCard(nodeId) {
+      const rawNode = nodesData.find(n => n.id === nodeId);
+      if (!rawNode) return;
+
+      const cfg = CLASS_CONFIG[rawNode.group] || {};
+
+      document.getElementById('no-selection-guide').classList.add('hidden');
+      document.getElementById('edge-detail-card').classList.add('hidden');
+      document.getElementById('node-detail-card').classList.remove('hidden');
+
+      document.getElementById('detail-category-strip').style.backgroundColor = cfg.stripColor || '#f59e0b';
+      
+      const categoryEl = document.getElementById('detail-category');
+      categoryEl.textContent = rawNode.group;
+      categoryEl.className = `text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${cfg.badgeBg}`;
+
+      const topicNames = (rawNode.topics || []).map(t => TOPIC_LABELS[t]).join(' · ');
+      document.getElementById('detail-topic-badge').textContent = topicNames;
+
+      document.getElementById('detail-title').textContent = rawNode.label;
+      document.getElementById('detail-subtitle').textContent = rawNode.subtitle;
+      document.getElementById('detail-description').textContent = rawNode.description;
+
+      // Connected Neighbors
+      const relatedEdges = edgesData
+        .map((e, idx) => ({ ...e, edgeId: `edge_${idx}` }))
+        .filter(e => e.from === nodeId || e.to === nodeId);
+
+      const connListEl = document.getElementById('detail-connections-list');
+      document.getElementById('detail-conn-count').textContent = `${relatedEdges.length}건`;
+      connListEl.innerHTML = '';
+
+      relatedEdges.forEach(edge => {
+        const isOutgoing = edge.from === nodeId;
+        const otherId = isOutgoing ? edge.to : edge.from;
+        const otherNode = nodesData.find(n => n.id === otherId);
+
+        const item = document.createElement('div');
+        item.className = 'p-2.5 rounded-xl bg-white border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 cursor-pointer transition-all shadow-2xs group';
+        item.onclick = () => focusNodeById(otherId);
+
+        item.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <i data-lucide="${isOutgoing ? 'arrow-right-circle' : 'arrow-left-circle'}" class="w-4 h-4 shrink-0 ${isOutgoing ? 'text-amber-600' : 'text-blue-600'}"></i>
+              <span class="text-xs font-bold text-slate-900 truncate group-hover:text-amber-700">${otherNode ? otherNode.label : otherId}</span>
+            </div>
+            <span class="text-[10px] text-slate-400 shrink-0">${isOutgoing ? '발신' : '수신'}</span>
+          </div>
+          <div class="mt-1.5 text-[11px] text-slate-600 bg-slate-100/80 px-2 py-1 rounded-md border border-slate-200/70">
+            ${edge.label}
+          </div>
+        `;
+        connListEl.appendChild(item);
+      });
+
+      lucide.createIcons();
+      switchTab('info');
+    }
+
+    function showEdgeDetailCard(edgeId) {
+      const idx = parseInt(edgeId.replace('edge_', ''), 10);
+      const rawEdge = edgesData[idx];
+      if (!rawEdge) return;
+
+      const fromNode = nodesData.find(n => n.id === rawEdge.from);
+      const toNode = nodesData.find(n => n.id === rawEdge.to);
+
+      document.getElementById('no-selection-guide').classList.add('hidden');
+      document.getElementById('node-detail-card').classList.add('hidden');
+      document.getElementById('edge-detail-card').classList.remove('hidden');
+
+      document.getElementById('edge-detail-title').textContent = rawEdge.label;
+      document.getElementById('edge-style-badge').textContent = rawEdge.dashes ? '점선 (호출·건의·논의)' : '실선 (혈연·소속·결정)';
+      document.getElementById('edge-from-label').textContent = fromNode ? fromNode.label : rawEdge.from;
+      document.getElementById('edge-to-label').textContent = toNode ? toNode.label : rawEdge.to;
+      document.getElementById('edge-detail-desc').textContent = rawEdge.description;
+
+      document.getElementById('edge-from-btn').onclick = () => focusNodeById(rawEdge.from);
+      document.getElementById('edge-to-btn').onclick = () => focusNodeById(rawEdge.to);
+
+      lucide.createIcons();
+      switchTab('info');
+    }
+
+    // ==========================================
+    // 5. FILTERING, SEARCH & CONTROLS
+    // ==========================================
+    function applyAllFilters() {
+      const visibleNodes = nodesData
+        .filter(n => activeCategories.has(n.group))
+        .map(createNodeObject);
+
+      const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+      const visibleEdges = edgesData
+        .map((edge, idx) => ({ edge, idx }))
+        .filter(({ edge }) => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to))
+        .map(({ edge, idx }) => createEdgeObject(edge, idx));
+
+      nodesDataSet.clear();
+      edgesDataSet.clear();
+      nodesDataSet.add(visibleNodes);
+      edgesDataSet.add(visibleEdges);
+
+      if (selectedNodeId && visibleNodeIds.has(selectedNodeId)) {
+        highlightSubgraphForNode(selectedNodeId);
+      }
+
+      updateStatsText();
+    }
+
+    function updateStatsText() {
+      const statsEl = document.getElementById('graph-stats-text');
+      if (statsEl) {
+        statsEl.textContent = `노드 ${nodesDataSet.length}개 · 관계 ${edgesDataSet.length}개 표시 중`;
+      }
+    }
+
+    function setupLegendAndCheckboxes() {
+      const legendContainer = document.getElementById('quick-legend-list');
+      const checkboxContainer = document.getElementById('class-filter-checkboxes');
+
+      legendContainer.innerHTML = '';
+      checkboxContainer.innerHTML = '';
+
+      Object.keys(CLASS_CONFIG).forEach(className => {
+        const cfg = CLASS_CONFIG[className];
+        const count = nodesData.filter(n => n.group === className).length;
+
+        // Floating Legend Item
+        const legendItem = document.createElement('button');
+        legendItem.className = 'flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-100 px-1.5 py-1 rounded-md transition-colors text-left w-full';
+        legendItem.onclick = () => {
+          const cb = document.querySelector(`.category-checkbox[data-class="${className}"]`);
+          if (cb) {
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event('change'));
+          }
+        };
+        legendItem.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full border shrink-0" style="background-color: ${cfg.color.background}; border-color: ${cfg.color.border};"></span>
+            <span class="text-slate-700 font-semibold">${cfg.shortName}</span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-medium">${count}</span>
+        `;
+        legendContainer.appendChild(legendItem);
+
+        // Sidebar Filter Checkbox
+        const checkItem = document.createElement('label');
+        checkItem.className = 'flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-800 cursor-pointer hover:border-slate-300 transition-colors shadow-2xs';
+        checkItem.innerHTML = `
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-3 h-3 rounded-full border shrink-0" style="background-color: ${cfg.color.background}; border-color: ${cfg.color.border};"></span>
+            <span class="truncate">${className}</span>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-[11px] text-slate-400 font-semibold">${count}개</span>
+            <input type="checkbox" data-class="${className}" checked class="category-checkbox w-4 h-4 accent-amber-600 rounded cursor-pointer">
+          </div>
+        `;
+        checkboxContainer.appendChild(checkItem);
+      });
+
+      document.querySelectorAll('.category-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+          const cat = e.target.getAttribute('data-class');
+          if (e.target.checked) activeCategories.add(cat);
+          else activeCategories.delete(cat);
+          applyAllFilters();
+        });
+      });
+    }
+
+    function setupTopicButtons() {
+      const topicBtns = document.querySelectorAll('.topic-btn');
+      topicBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          topicBtns.forEach(b => {
+            b.className = 'topic-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all whitespace-nowrap';
+          });
+          btn.className = 'topic-btn active px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-2xs transition-all whitespace-nowrap';
+          
+          activeTopic = btn.getAttribute('data-topic');
+          selectedNodeId = null;
+          selectedEdgeId = null;
+          applyAllFilters();
+          showEmptyGuide();
+        });
+      });
+    }
+
+    function setupLiveSearch() {
+      const searchInput = document.getElementById('search-input');
+      const clearBtn = document.getElementById('clear-search');
+      const dropdown = document.getElementById('search-dropdown');
+
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.trim().toLowerCase();
+        if (!query) {
+          clearBtn.classList.add('hidden');
+          dropdown.classList.add('hidden');
+          return;
+        }
+
+        clearBtn.classList.remove('hidden');
+        const matches = nodesData.filter(n =>
+          n.label.toLowerCase().includes(query) ||
+          n.subtitle.toLowerCase().includes(query) ||
+          n.group.toLowerCase().includes(query)
+        );
+
+        dropdown.innerHTML = '';
+        if (matches.length === 0) {
+          dropdown.innerHTML = `<div class="p-3 text-xs text-slate-500 text-center">일치하는 노드가 없습니다.</div>`;
+        } else {
+          matches.forEach(node => {
+            const cfg = CLASS_CONFIG[node.group];
+            const item = document.createElement('button');
+            item.className = 'w-full px-3 py-2 text-left hover:bg-amber-50/70 flex items-center justify-between gap-2 transition-colors';
+            item.innerHTML = `
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-slate-900 truncate">${node.label}</div>
+                <div class="text-[10px] text-slate-500 truncate">${node.subtitle}</div>
+              </div>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${cfg.badgeBg}">${cfg.shortName}</span>
+            `;
+            item.onclick = () => {
+              focusNodeById(node.id);
+              dropdown.classList.add('hidden');
+              searchInput.value = node.label;
+            };
+            dropdown.appendChild(item);
+          });
+        }
+        dropdown.classList.remove('hidden');
+      });
+
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearBtn.classList.add('hidden');
+        dropdown.classList.add('hidden');
+        selectedNodeId = null;
+        selectedEdgeId = null;
+        applyAllFilters();
+        showEmptyGuide();
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    }
+
+    function switchTab(tab) {
+      const infoBtn = document.getElementById('tab-info-btn');
+      const filterBtn = document.getElementById('tab-filter-btn');
+      const infoContent = document.getElementById('tab-info-content');
+      const filterContent = document.getElementById('tab-filter-content');
+
+      if (tab === 'info') {
+        infoBtn.className = 'flex-1 py-3 px-4 text-xs font-bold text-amber-700 border-b-2 border-amber-500 bg-white flex items-center justify-center gap-1.5 transition-colors';
+        filterBtn.className = 'flex-1 py-3 px-4 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent flex items-center justify-center gap-1.5 transition-colors';
+        infoContent.classList.remove('hidden');
+        filterContent.classList.add('hidden');
+      } else {
+        filterBtn.className = 'flex-1 py-3 px-4 text-xs font-bold text-amber-700 border-b-2 border-amber-500 bg-white flex items-center justify-center gap-1.5 transition-colors';
+        infoBtn.className = 'flex-1 py-3 px-4 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent flex items-center justify-center gap-1.5 transition-colors';
+        filterContent.classList.remove('hidden');
+        infoContent.classList.add('hidden');
+      }
+    }
+
+    function setupControls() {
+      document.getElementById('tab-info-btn').addEventListener('click', () => switchTab('info'));
+      document.getElementById('tab-filter-btn').addEventListener('click', () => switchTab('filter'));
+
+      const sidePanel = document.getElementById('side-panel');
+      document.getElementById('toggle-panel-btn').addEventListener('click', () => {
+        sidePanel.classList.toggle('translate-x-full');
+      });
+
+      document.getElementById('btn-zoom-in').addEventListener('click', () => {
+        network.moveTo({ scale: network.getScale() * 1.25, animation: { duration: 250 } });
+      });
+
+      document.getElementById('btn-zoom-out').addEventListener('click', () => {
+        network.moveTo({ scale: network.getScale() * 0.8, animation: { duration: 250 } });
+      });
+
+      document.getElementById('btn-fit-view').addEventListener('click', () => {
+        network.fit({ animation: { duration: 450 } });
+      });
+
+      document.getElementById('btn-reset-layout').addEventListener('click', () => {
+        selectedNodeId = null;
+        selectedEdgeId = null;
+        activeTopic = 'all';
+        activeCategories = new Set(Object.keys(CLASS_CONFIG));
+        document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = true);
+        document.querySelectorAll('.topic-btn').forEach((b, i) => {
+          b.className = i === 0
+            ? 'topic-btn active px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-2xs transition-all whitespace-nowrap'
+            : 'topic-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all whitespace-nowrap';
+        });
+        applyAllFilters();
+        showEmptyGuide();
+        network.stabilize(150);
+        network.fit({ animation: { duration: 500 } });
+      });
+
+      // Physics Toggle
+      const physicsBtn = document.getElementById('btn-toggle-physics');
+      const physicsCheck = document.getElementById('toggle-physics-check');
+
+      function setPhysics(enable) {
+        isPhysicsActive = enable;
+        network.setOptions({ physics: { enabled: enable } });
+        physicsCheck.checked = enable;
+        physicsBtn.className = enable
+          ? 'p-2 hover:bg-emerald-50 rounded-lg text-emerald-600 hover:text-emerald-700 transition-colors'
+          : 'p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors';
+      }
+
+      physicsBtn.addEventListener('click', () => setPhysics(!isPhysicsActive));
+      physicsCheck.addEventListener('change', (e) => setPhysics(e.target.checked));
+
+      // Edge Labels Toggle
+      document.getElementById('toggle-edge-labels').addEventListener('change', (e) => {
+        showEdgeLabels = e.target.checked;
+        applyAllFilters();
+      });
+
+      // Select All Categories
+      document.getElementById('btn-select-all-nodes').addEventListener('click', () => {
+        activeCategories = new Set(Object.keys(CLASS_CONFIG));
+        document.querySelectorAll('.category-checkbox').forEach(cb => cb.checked = true);
+        applyAllFilters();
+      });
+    }
+
+    // Window Onload Init
+    window.onload = function() {
+      initNetwork();
+      setupLegendAndCheckboxes();
+      setupTopicButtons();
+      setupLiveSearch();
+      setupControls();
+    };
+  </script>
+</body>
+</html>
